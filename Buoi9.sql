@@ -11,7 +11,12 @@ case
 end as triangle
 From triangle
 --ex3:
-
+With table1 as (SELECT 
+    sum(case when call_category is null or call_category = 'n/a' then 1 else 0 end) as chua_pl,
+    sum(case when call_category is not null and call_category != 'n/a'then 1 else 0 end) as da_pl
+FROM callers) 
+select round(chua_pl / chua_pl+ da_pl * 100, 1) as call_percentage
+from table1
 
 --ex4:
 select name
