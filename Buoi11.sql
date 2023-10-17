@@ -6,6 +6,7 @@ FROM country as c1
 INNER JOIN city as c2
 ON c1.code = c2.countrycode
 GROUP BY  c1.continent
+  
 --ex2:
 --the activation rate of specified users in the emails table
 --Round the percentage to 2 decimal places.
