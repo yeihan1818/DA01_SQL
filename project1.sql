@@ -64,3 +64,14 @@ FROM sales_dataset_rfm_prj) as a
 
 
 
+UPDATE sales_dataset_rfm_prj
+SET contactfirstname = UPPER(LEFT(contactfullname,1))||
+LOWER(SUBSTRING(contactfullname,2,POSITION('-' IN contactfullname)-2));
+
+UPDATE sales_dataset_rfm_prj
+SET contactlastname = UPPER(SUBSTRING(contactfullname,POSITION('-' IN contactfullname)+1,1))||
+LOWER(SUBSTRING(contactfullname,POSITION('-' IN contactfullname)+2,LENGTH(contactfullname)));
+
+
+
+
