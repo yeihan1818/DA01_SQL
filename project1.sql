@@ -1,4 +1,7 @@
+--Buoi19:Practice 9- Project1
+
 select * from public.sales_dataset_rfm_prj
+
 ALTER TABLE sales_dataset_rfm_prj 
 ALTER COLUMN quantityordered TYPE numeric USING (trim(quantityordered)::numeric);
 
@@ -23,55 +26,89 @@ where ORDERNUMBER = ' '
 	or SALES is null
 	or ORDERDATE is null
 
-/* Thêm cột 
-CONTACTLASTNAME, CONTACTFIRSTNAME được tách ra từ CONTACTFULLNAME . 
-Chuẩn hóa 
-CONTACTLASTNAME, CONTACTFIRSTNAME 
-theo định dạng chữ cái đầu tiên viết hoa, chữ cái tiếp theo viết thường. */
-select
-	contactfullname,
-	left(contactfullname, position('-' in contactfullname)- 1), 
-	concat(
-		upper(left(left(contactfullname, position('-' in contactfullname)- 1), 1)), 
-		   lower(substring(left(contactfullname, position('-' in contactfullname)- 1),2))
-	),
-	right(contactfullname, length(contactfullname)- position('-' in contactfullname)),
-	concat(
-		upper(left(right(contactfullname, length(contactfullname)- position('-' in contactfullname)), 1)), 
-		lower(substring(right(contactfullname, length(contactfullname)- position('-' in contactfullname)),2))
-	)
-from sales_dataset_rfm_prj
 
+/* Thêm cột CONTACTLASTNAME, CONTACTFIRSTNAME 
+được tách ra từ CONTACTFULLNAME . */
 
-alter table sales_dataset_rfm_prj
-add CONTACTFIRSTNAME VARCHAR(50)
+--Thêm cột
+ALTER TABLE sales_dataset_rfm_prj
+ADD column contactfirstname VARCHAR(50)
 
-alter table sales_dataset_rfm_prj
-add CONTACTLASTNAME VARCHAR(50)
+ALTER TABLE sales_dataset_rfm_prj
+ADD column contactlastname VARCHAR(50)
 
-INSERT INTO sales_dataset_rfm_prj(CONTACTFIRSTNAME, CONTACTLASTNAME)
-select * from (
-SELECT 
-	concat(
-		upper(left(left(contactfullname, position('-' in contactfullname)- 1), 1)), 
-		   lower(substring(left(contactfullname, position('-' in contactfullname)- 1),2))
-	) as CONTACTFIRSTNAME,
-		concat(
-		upper(left(right(contactfullname, length(contactfullname)- position('-' in contactfullname)), 1)), 
-		lower(substring(right(contactfullname, length(contactfullname)- position('-' in contactfullname)),2))
-	) as CONTACTLASTNAME
-FROM sales_dataset_rfm_prj) as a
-
-
-
+--Update data vào cột
 UPDATE sales_dataset_rfm_prj
 SET contactfirstname = UPPER(LEFT(contactfullname,1))||
-LOWER(SUBSTRING(contactfullname,2,POSITION('-' IN contactfullname)-2));
+LOWER(SUBSTRING(contactfullname,2,POSITION('-' IN contactfullname)-2))
 
 UPDATE sales_dataset_rfm_prj
 SET contactlastname = UPPER(SUBSTRING(contactfullname,POSITION('-' IN contactfullname)+1,1))||
-LOWER(SUBSTRING(contactfullname,POSITION('-' IN contactfullname)+2,LENGTH(contactfullname)));
+LOWER(SUBSTRING(contactfullname,POSITION('-' IN contactfullname)+2,LENGTH(contactfullname)))
 
+/*Thêm cột QTR_ID, MONTH_ID, YEAR_ID 
+lần lượt là Qúy, tháng, năm được lấy ra từ ORDERDATE */
+-- thêm cột
+ALTER TABLE sales_dataset_rfm_prj
+ADD column qtr_id float
 
+ALTER TABLE sales_dataset_rfm_prj
+ADD column MONTH_ID float
 
+ALTER TABLE sales_dataset_rfm_prj
+ADD column YEAR_ID float
+
+--Update data vào cột
+UPDATE public.sales_dataset_rfm_prj
+SET qtr_id = extract(quarter from orderdate)
+
+UPDATE sales_dataset_rfm_prj
+SET MONTH_ID = extract(month from orderdate)
+
+UPDATE sales_dataset_rfm_prj
+SET YEAR_ID = extract(year from orderdate)
+
+/* Hãy tìm outlier (nếu có) cho cột QUANTITYORDERED 
+và hãy chọn cách xử lý cho bản ghi đó*/
+WITH twt_min_max_value as (
+SELECT
+	q1-1.5 * iqr as min_value,
+	q3+1.5* iqr as max_value
+FROM (
+	SELECT
+		percentile_cont(0.25) within group (order by quantityordered ) as  q1,
+		percentile_cont(0.75) within group (order by quantityordered) as q3,
+		percentile_cont(0.75) within group (order by quantityordered)
+		- percentile_cont(0.25) within group (order by quantityordered) as iqr
+	FROM public.sales_dataset_rfm_prj) as a
+)
+SELECT * FROM sales_dataset_rfm_prj
+WHERE 
+	quantityordered < (select min_value from twt_min_max_value)
+	or quantityordered > (select max_value from twt_min_max_value)
+
+--xu ly outlier-update
+UPDATE sales_dataset_rfm_prj
+Set quantityordered = (select avg(quantityordered) from sales_dataset_rfm_prj)
+Where quantityordered IN (
+	SELECT quantityordered FROM 
+		(SELECT * FROM sales_dataset_rfm_prj
+		 WHERE 
+				quantityordered < (select min_value from twt_min_max_value)
+				or quantityordered > (select max_value from twt_min_max_value)
+			) as cte)
+-- delete
+delete from sales_dataset_rfm_prj
+where quantityordered in IN (
+		SELECT quantityordered FROM 
+		(SELECT * FROM sales_dataset_rfm_prj
+		 WHERE 
+				quantityordered < (select min_value from twt_min_max_value)
+				or quantityordered > (select max_value from twt_min_max_value)
+			) as cte)
+/*Sau khi làm sạch dữ liệu, hãy lưu vào bảng mới  tên là SALES_DATASET_RFM_PRJ_CLEAN*/
+CREATE TABLE SALES_DATASET_RFM_PRJ_CLEAN as 
+(
+	select * from sales_dataset_rfm_prj
+)
 
